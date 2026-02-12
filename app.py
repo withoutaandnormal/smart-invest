@@ -10,8 +10,8 @@ from datetime import datetime
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="스마트(SM) 수급 분석기", layout="wide")
 
-# Paths (using absolute path based on user instruction)
-BASE_DIR = os.path.expanduser("~/.openclaw/workspace/ST_program")
+# Paths (using relative path for Streamlit Cloud deployment)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "KR_SM_Stock")
 META_FILE_SECTOR = os.path.join(BASE_DIR, "업종분류.csv")
 META_FILE_BASIC = os.path.join(BASE_DIR, "Basic stock info.csv")
