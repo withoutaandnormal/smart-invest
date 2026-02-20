@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Dobby Money</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="dobby">
+
+
+
+
+
+    <header class="dobby_header">
+        <div class="dobby_header_title">
+            <h1 class="dobby_header_title_text">
+                Smart Dobby
+            </h1>
+            <span id="last-updated" class="dobby_header_title_date">
+
+            </span>
+            <a href="/refresh" class="btn"> Re </a>
+        </div>
+        <nav>
+            <a href="/" class="{{ 'active' if page == 'home' else '' }}">홈</a>
+            <a href="/sector" class="{{ 'active' if page == 'sector' else '' }}">업종 분석</a>
+            <a href="/consecutive" class="{{ 'active' if page == 'consecutive' else '' }}">연속 순매수</a>
+            <a href="/abc" class="{{ 'active' if page == 'abc' else '' }}">집합 전략</a>
+        </nav>
+    </header>
+
+
+
+
+
+    <main class="dobby_body">
+
+
+
+
+
+        {% if page == 'home' %}
+            <section class="dobby_body_con">
+                <p class="dobby_body_con_info">
+                    상단 메뉴를 통해 스마트머니 수급 현황을 분석하세요.
+                </p>
+                <div class="dobby_body_con_filter">
+                    <div class="dobby_body_con_filter_search">
+                        <input class="dobby_body_con_filter_search_box" type="text" id="stock-input" placeholder="종목명 또는 코드 입력 (예: 삼성전자)" onkeyup="searchStocks()">
+                        <input type="hidden" id="stock-code">
+                    </div>
+                    <div id="search-results" class="dobby_body_con_filter_result"></div>
+                </div>
+                
+                <div id="stock-info-panel" class="dobby_body_con_summary" style="display: none;">
+                    <div class="dobby_body_con_summary_wrapper">
+                        <p class="dobby_body_con_summary_text">
+                            현재가: <span id="info-price" style="color: #333;">-</span>
+                        </p>
+                        <p class="dobby_body_con_summary_text">
+                            스마트 평단: <span id="info-avg" style="color: #3B6DD5;">-</span>
+                        </p>
+                        <p class="dobby_body_con_summary_text">
+                            괴리율: <span id="info-disparity" style="color: #b42727;">-</span>
+                        </p>
+                        <p class="dobby_body_con_summary_text">
+                            20일 순매수: <span id="info-netbuy">-</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="dobby_body_con_result">
+                    <div id="stock-chart-container" class="dobby_body_con_result_inner">
+                        <canvas id="stockChart"></canvas>
+                    </div>
+                </div>
+                
+                
+            </section>
+        
+
+
+
+
+        {% elif page == 'sector' %}
+            <section class="dobby_body_con">
+                <h2 class="dobby_body_con_title">
+                    주도 업종 ({{ days }}일 기준)
+                </h2>
+                <div class="filter-controls">
+                    <a href="/sector?days=1" class="{{ 'active' if days == 1 else '' }}">1일</a>
+                    <a href="/sector?days=3" class="{{ 'active' if days == 3 else '' }}">3일</a>
+                    <a href="/sector?days=5" class="{{ 'active' if days == 5 else '' }}">5일</a>
+                </div>
+                <div class="dobby_body_con_table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="center">순위</th>
+                                <th>업종명</th>
+                                <th>순매수합계 (억)</th>
+                                <th>매수 강도 (확산도)</th>
+                                <th class="center">상세보기</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in data %}
+                            <tr onclick="toggleDetail('{{ row.Sector }}')" style="cursor: pointer;">
+                                <td class="center">{{ loop.index }}</td>
+                                <td style="font-weight: bold;">{{ row.Sector }}</td>
+                                <td style="color: {{ '#e73c3c' if row.NetBuyAmt_100M > 0 else '#3c56e7' }};">
+                                    {{ row.NetBuyAmt_100M }}
+                                </td>
+                                <td>
+                                    <div class="dobby_body_con_table_chart">
+                                        <div class="dobby_body_con_table_chart_bar" style="">
+                                            <div style="width: {{ row.Breadth }}%; height: 100%; background: {{ '#e73c3c' if row.Breadth > 50 else '#a7a7a7' }};"></div>
+                                        </div>
+                                        <span>{{ row.Breadth }}%</span>
+                                    </div>
+                                </td>
+                                <td class="center">🔽</td>
+                            </tr>
+                            <tr id="detail-{{ row.Sector }}" style="display: none; background-color: #f8f9fa;">
+                                <td colspan="5">
+                                    <div class="dobby_body_con_table_inner">
+                                        <h4 class="dobby_body_con_table_inner_title">
+                                            {{ row.Sector }} Top 5 Picks
+                                        </h4>
+                                        <table style="width: 100%; font-size: 0.9em; background: white;">
+                                            <thead>
+                                                <tr style="background: #e9ecef;">
+                                                    <th>종목명</th>
+                                                    <th>업종</th>
+                                                    <th>순매수 (억)</th>
+                                                    <th>현재가</th>
+                                                    <th>괴리율</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for pick in top_picks[row.Sector] %}
+                                                <tr>
+                                                    <td>{{ pick.name }} ({{ pick.code }})</td>
+                                                    <td>{{ pick.sector }}</td>
+                                                    <td style="color: {{ 'red' if pick.net_buy > 0 else 'blue' }};">{{ pick.net_buy }}</td>
+                                                    <td>{{ "{:,}".format(pick.price) }}</td>
+                                                    <td style="color: {{ 'red' if pick.disparity > 0 else 'blue' }};">{{ pick.disparity }}%</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5">데이터가 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+            </section>
+            
+            <script>
+                function toggleDetail(sector) {
+                    const row = document.getElementById('detail-' + sector);
+                    if (row.style.display === 'none') {
+                        row.style.display = 'table-row';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                }
+            </script>
+
+
+
+
+
+        {% elif page == 'consecutive' %}
+            <section class="dobby_body_con">
+                <h2 class="dobby_body_con_title">
+                    {{ days }}일 연속 순매수 종목 (큰손 정렬)
+                </h2>
+                <div class="filter-controls">
+                    <a href="/consecutive?days=3" class="{{ 'active' if days == 3 else '' }}">3일</a>
+                    <a href="/consecutive?days=5" class="{{ 'active' if days == 5 else '' }}">5일</a>
+                    <a href="/consecutive?days=7" class="{{ 'active' if days == 7 else '' }}">7일</a>
+                    <a href="/consecutive?days=10" class="{{ 'active' if days == 10 else '' }}">10일</a>
+                </div>
+                <div class="dobby_body_con_table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>순위</th>
+                                <th>종목명</th>
+                                <th>업종</th>
+                                <th>총 순매수 (억)</th>
+                                <th>현재가</th>
+                                <th>괴리율</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in data %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td style="font-weight: bold;">{{ row.name }} <span style="font-size:0.8em; color:#888;">({{ row.code }})</span></td>
+                                <td>{{ row.sector }}</td>
+                                <td style="color: red;">{{ row.total_net }}</td>
+                                <td>{{ "{:,}".format(row.curr_price) }}</td>
+                                <td style="color: {{ 'red' if row.disparity > 0 else 'blue' }};">{{ row.disparity }}%</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" style="text-align:center; padding: 20px;">
+                                해당 기간 동안 연속으로 매수한 종목이 없습니다. (기간을 줄여보세요!)
+                            </td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+
+
+
+
+        {% elif page == 'abc' %}
+            <section class="dobby_body_con ver02">
+                <div class="dobby_body_con_li">
+                    <h3 class="dobby_body_con_title">
+                        최종 선정 (A그룹 - B, C 제외)
+                    </h3>
+                    <p class="dobby_body_con_info">
+                        * 20일 순매수 상위 30위 중, 최근 5일 대량 유출(B) 및 3일 순매도(C) 종목 제외<br>
+                        * <strong>20일 순매수 금액 순</strong> 정렬 (수급 우선)
+                    </p>
+                    <div class="dobby_body_con_table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>종목명</th>
+                                    <th>20일 순매수(억)</th>
+                                    <th>괴리율</th>
+                                    <th>현재가</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in final %}
+                                <tr>
+                                    <td style="font-weight: bold;">{{ item.name }} <span style="font-size:0.8em; color:#888;">({{ item.code }})</span></td>
+                                    <td style="color: red;">{{ item.net_buy }}</td>
+                                    <td style="color: {{ 'red' if item.disparity > 0 else 'blue' }};">{{ item.disparity }}%</td>
+                                    <td>{{ "{:,}".format(item.price) }}</td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="4">조건을 만족하는 종목이 없습니다.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div  class="dobby_body_con_li disabled">
+                    <h3 class="dobby_body_con_title">
+                        제외된 종목 (Risk)
+                    </h3>
+                    <div class="dobby_body_con_table">
+                        <table style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>종목명</th>
+                                    <th>제외 사유</th>
+                                    <th>20일 순매수(억)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in excluded %}
+                                <tr>
+                                    <td>{{ item.name }}</td>
+                                    <td style="color: #e74c3c; font-weight: bold;">{{ item.reason }}</td>
+                                    <td>{{ item.net_buy }}</td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="3">제외된 종목이 없습니다.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        {% endif %}
+
+
+
+
+
+    </main>
+
+    <script>
+        let debounceTimer;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            const res = await fetch('/metadata');
+            const meta = await res.json();
+            if(meta.last_updated) {
+                document.getElementById('last-updated').textContent = `기준일: ${meta.last_updated} (최신)`;
+            }
+        });
+
+        async function searchStocks() {
+            const query = document.getElementById('stock-input').value;
+            const resultsDiv = document.getElementById('search-results');
+            
+            if (query.length < 1) {
+                resultsDiv.style.display = 'none';
+                return;
+            }
+
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(async () => {
+                const response = await fetch(`/search_stock?q=${query}`);
+                const data = await response.json();
+                
+                resultsDiv.innerHTML = '';
+                if (data.length > 0) {
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'search-item';
+                        div.textContent = `${item.Name} (${item.Code})`;
+                        div.onclick = () => selectStock(item.Code, item.Name);
+                        resultsDiv.appendChild(div);
+                    });
+                    resultsDiv.style.display = 'block';
+                } else {
+                    resultsDiv.style.display = 'none';
+                }
+            }, 300);
+        }
+
+        function selectStock(code, name) {
+            document.getElementById('stock-input').value = `${name} (${code})`;
+            document.getElementById('stock-code').value = code;
+            document.getElementById('search-results').style.display = 'none';
+            loadStock(code);
+        }
+
+        async function loadStock(code) {
+            if(!code) return;
+            
+            const response = await fetch(`/stock_api?code=${code}`);
+            const data = await response.json();
+            
+            if(data.dates && data.dates.length > 0) {
+                // Update Info Panel
+                document.getElementById('stock-info-panel').style.display = 'block';
+                if(data.info) {
+                    document.getElementById('info-price').textContent = data.info.current_price.toLocaleString() + '원';
+                    document.getElementById('info-avg').textContent = data.info.smart_avg.toLocaleString() + '원';
+                    
+                    const dispElem = document.getElementById('info-disparity');
+                    dispElem.textContent = data.info.disparity + '%';
+                    dispElem.style.color = data.info.disparity > 0 ? 'red' : 'blue';
+                    
+                    const netElem = document.getElementById('info-netbuy');
+                    netElem.textContent = data.info.total_net_buy + '억';
+                    netElem.style.color = data.info.total_net_buy > 0 ? 'red' : 'blue';
+                }
+
+                const ctx = document.getElementById('stockChart').getContext('2d');
+                if(window.myChart) window.myChart.destroy();
+                
+                window.myChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.dates,
+                        datasets: [{
+                            label: '순매수 (+)',
+                            data: data.net_buy.map(v => v >= 0 ? v : null),
+                            backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                            stack: 'stack0',
+                            yAxisID: 'y',
+                            order: 2
+                        }, {
+                            label: '순매수 (-)',
+                            data: data.net_buy.map(v => v < 0 ? v : null),
+                            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                            stack: 'stack0',
+                            yAxisID: 'y',
+                            order: 2
+                        }, {
+                            label: '주가',
+                            data: data.prices,
+                            type: 'line',
+                            borderColor: '#333',
+                            borderWidth: 2,
+                            pointRadius: 3,
+                            yAxisID: 'y1',
+                            order: 1
+                        }, {
+                            label: '스마트 평단',
+                            data: new Array(data.dates.length).fill(data.info.smart_avg),
+                            type: 'line',
+                            borderColor: '#9b59b6',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            yAxisID: 'y1',
+                            order: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        scales: {
+                            y: { 
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                title: { display: true, text: '순매수 (억)' }
+                            },
+                            y1: { 
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                grid: { drawOnChartArea: false },
+                                title: { display: true, text: '주가 (원)' }
+                            }
+                        }
+                    }
+                });
+            } else {
+                alert('데이터가 없습니다.');
+            }
+        }
+    </script>
+</body>
+</html>
